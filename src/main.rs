@@ -50,6 +50,8 @@ enum Request {
         query: String,
         max_results: u32,
         locale: Option<String>,
+        #[serde(default = "default_settings_json")]
+        settings_json: String,
     },
 }
 
@@ -308,8 +310,13 @@ fn run() -> Result<()> {
                 query,
                 max_results,
                 locale,
+                settings_json,
             }) => {
-                if query.chars().count() > 4096 || max_results == 0 || max_results > 100 {
+                if query.chars().count() > 4096
+                    || settings_json.len() > 256 * 1024
+                    || max_results == 0
+                    || max_results > 100
+                {
                     write_error(&mut stdout, Some(id), "invalid query limits")?;
                     continue;
                 }
@@ -318,6 +325,7 @@ fn run() -> Result<()> {
                     query,
                     max_results,
                     locale,
+                    settings_json,
                 };
                 match bindings
                     .rayslash_module_provider()
@@ -387,6 +395,9 @@ fn valid_cache_key(key: &str) -> bool {
         && key
             .bytes()
             .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.'))
+}
+fn default_settings_json() -> String {
+    "{}".to_owned()
 }
 fn https_origin(url: &str) -> Option<&str> {
     let rest = url.strip_prefix("https://")?;
