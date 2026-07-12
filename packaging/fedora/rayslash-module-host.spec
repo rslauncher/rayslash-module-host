@@ -1,5 +1,5 @@
 Name:           rayslash-module-host
-Version:        0.1.0
+Version:        0.1.1
 Release:        1%{?dist}
 Summary:        Optional sandbox host for RaySlash WASM modules
 License:        MIT
@@ -31,5 +31,8 @@ install -Dm0644 %{SOURCE1} %{buildroot}%{_licensedir}/%{name}/LICENSE
 %{_libexecdir}/rayslash/rayslash-module-host
 
 %changelog
+* Sun Jul 12 2026 RaySlash contributors - 0.1.1-1
+- Validate all module result fields and typed actions at the host boundary.
+
 * Sun Jul 12 2026 RaySlash contributors - 0.1.0-1
 - Initial optional host package
