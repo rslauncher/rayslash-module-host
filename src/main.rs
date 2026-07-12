@@ -217,10 +217,7 @@ impl HostState {
             .header("User-Agent", "rayslash-module-host/1")
             .body(request.body)
             .map_err(|_| module_error("invalid HTTP request"))?;
-        let agent: ureq::Agent = ureq::Agent::config_builder()
-            .timeout_global(Some(Duration::from_secs(10)))
-            .build()
-            .into();
+        let agent = http_agent();
         let mut response = agent
             .run(built)
             .map_err(|_| module_error("HTTP request failed"))?;
@@ -248,6 +245,16 @@ impl HostState {
             body,
         })
     }
+}
+
+fn http_agent() -> ureq::Agent {
+    ureq::Agent::config_builder()
+        .timeout_global(Some(Duration::from_secs(10)))
+        // A redirect is a new capability decision. Returning the 3xx response lets the
+        // module handle it without silently escaping the exact granted origin.
+        .max_redirects(0)
+        .build()
+        .into()
 }
 
 fn main() {
@@ -527,6 +534,10 @@ mod tests {
             Some("https://example.com")
         );
         assert_eq!(https_origin("http://example.com"), None);
+    }
+    #[test]
+    fn shared_http_client_never_follows_redirects() {
+        assert_eq!(http_agent().config().max_redirects(), 0);
     }
     #[test]
     fn cache_keys_reject_paths() {
