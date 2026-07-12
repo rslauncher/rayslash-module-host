@@ -2,7 +2,7 @@ use std::{
     collections::BTreeSet,
     fs,
     io::{self, BufRead, Write},
-    path::PathBuf,
+    path::{Path, PathBuf},
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
@@ -342,13 +342,14 @@ fn run() -> Result<()> {
                     .call_query(&mut store, &context)
                 {
                     Ok(Ok(value)) => {
+                        let results = value
+                            .results
+                            .into_iter()
+                            .take(max_results as usize)
+                            .map(map_result)
+                            .collect::<Result<Vec<_>>>()?;
                         let value = QueryValue {
-                            results: value
-                                .results
-                                .into_iter()
-                                .take(max_results as usize)
-                                .map(map_result)
-                                .collect(),
+                            results,
                             exclusive: value.exclusive,
                         };
                         write_response(
@@ -373,30 +374,105 @@ fn run() -> Result<()> {
     Ok(())
 }
 
-fn map_result(value: rayslash::module::types::ResultItem) -> ResultValue {
+fn map_result(value: rayslash::module::types::ResultItem) -> Result<ResultValue> {
     use rayslash::module::types::{Action, Icon};
-    ResultValue {
+    valid_text("result ID", &value.id, 1, 256)?;
+    valid_text("result title", &value.title, 1, 512)?;
+    valid_text("result subtitle", &value.subtitle, 0, 1024)?;
+    let icon = match value.icon {
+        Icon::PackagePath(value) => {
+            let path = Path::new(&value);
+            if value.len() > 512
+                || value.is_empty()
+                || path.is_absolute()
+                || path
+                    .components()
+                    .any(|part| !matches!(part, std::path::Component::Normal(_)))
+            {
+                bail!("invalid package icon path");
+            }
+            IconValue::PackagePath(value)
+        }
+        Icon::Text(value) => {
+            valid_text("text icon", &value, 1, 16)?;
+            IconValue::Text(value)
+        }
+        Icon::None => IconValue::None,
+    };
+    let action = match value.action {
+        Action::CopyText(value) => {
+            valid_text("copy action", &value, 0, 64 * 1024)?;
+            ActionValue::CopyText(value)
+        }
+        Action::OpenUrl(value) => {
+            if value.len() > 4096 || https_origin(&value).is_none() {
+                bail!("invalid open URL action");
+            }
+            ActionValue::OpenUrl(value)
+        }
+        Action::OpenPath(value) => {
+            valid_text("open path action", &value, 1, 4096)?;
+            ActionValue::OpenPath(value)
+        }
+        Action::ShowMessage(value) => {
+            valid_text("message action", &value, 0, 4096)?;
+            ActionValue::ShowMessage(value)
+        }
+        Action::Notify((title, body)) => {
+            valid_text("notification title", &title, 1, 256)?;
+            valid_text("notification body", &body, 0, 4096)?;
+            ActionValue::Notify((title, body))
+        }
+        Action::RunApprovedCommand(value) => {
+            validate_command(&value)?;
+            ActionValue::RunApprovedCommand(value)
+        }
+        Action::ScheduleNotification((delay, title, body)) => {
+            validate_delay(delay)?;
+            valid_text("notification title", &title, 1, 256)?;
+            valid_text("notification body", &body, 0, 4096)?;
+            ActionValue::ScheduleNotification((delay, title, body))
+        }
+        Action::ScheduleCommand((delay, command)) => {
+            validate_delay(delay)?;
+            validate_command(&command)?;
+            ActionValue::ScheduleCommand((delay, command))
+        }
+        Action::None => ActionValue::None,
+    };
+    Ok(ResultValue {
         id: value.id,
         title: value.title,
         subtitle: value.subtitle,
         score: value.score,
-        icon: match value.icon {
-            Icon::PackagePath(value) => IconValue::PackagePath(value),
-            Icon::Text(value) => IconValue::Text(value),
-            Icon::None => IconValue::None,
-        },
-        action: match value.action {
-            Action::CopyText(value) => ActionValue::CopyText(value),
-            Action::OpenUrl(value) => ActionValue::OpenUrl(value),
-            Action::OpenPath(value) => ActionValue::OpenPath(value),
-            Action::ShowMessage(value) => ActionValue::ShowMessage(value),
-            Action::Notify(value) => ActionValue::Notify(value),
-            Action::RunApprovedCommand(value) => ActionValue::RunApprovedCommand(value),
-            Action::ScheduleNotification(value) => ActionValue::ScheduleNotification(value),
-            Action::ScheduleCommand(value) => ActionValue::ScheduleCommand(value),
-            Action::None => ActionValue::None,
-        },
+        icon,
+        action,
+    })
+}
+
+fn valid_text(label: &str, value: &str, minimum: usize, maximum: usize) -> Result<()> {
+    let length = value.chars().count();
+    if length < minimum || length > maximum || value.chars().any(char::is_control) {
+        bail!("invalid {label}");
     }
+    Ok(())
+}
+
+fn validate_command(command: &[String]) -> Result<()> {
+    if command.is_empty() || command.len() > 32 {
+        bail!("invalid command action");
+    }
+    for (index, argument) in command.iter().enumerate() {
+        valid_text("command argument", argument, usize::from(index == 0), 4096)?;
+    }
+    Ok(())
+}
+
+fn validate_delay(delay: u64) -> Result<()> {
+    if delay > 31_536_000 {
+        bail!("scheduled action delay exceeds one year");
+    }
+    Ok(())
 }
 
 fn module_error(message: &str) -> rayslash::module::types::ModuleError {
@@ -457,5 +533,15 @@ mod tests {
         assert!(valid_cache_key("rates-v1.json"));
         assert!(!valid_cache_key("../rates"));
         assert!(!valid_cache_key("a/b"));
+    }
+    #[test]
+    fn guest_text_and_actions_are_bounded() {
+        assert!(valid_text("title", "Result", 1, 512).is_ok());
+        assert!(valid_text("title", "bad\nvalue", 1, 512).is_err());
+        assert!(valid_text("title", &"x".repeat(513), 1, 512).is_err());
+        assert!(validate_command(&["systemctl".into(), "reboot".into()]).is_ok());
+        assert!(validate_command(&[]).is_err());
+        assert!(validate_delay(31_536_000).is_ok());
+        assert!(validate_delay(31_536_001).is_err());
     }
 }
