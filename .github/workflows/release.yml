@@ -19,7 +19,7 @@ jobs:
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@1.92.0
         with:
           targets: ${{ matrix.target }}
       - run: cargo build --release --locked --target "${{ matrix.target }}"
@@ -34,4 +34,3 @@ jobs:
           files: |
             *.tar.xz
             *.sha256
-

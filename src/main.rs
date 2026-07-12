@@ -3,7 +3,7 @@ use std::{
     fs,
     io::{self, BufRead, Write},
     path::PathBuf,
-    time::Duration,
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 use anyhow::{Result, anyhow, bail};
@@ -96,9 +96,12 @@ enum IconValue {
 enum ActionValue {
     CopyText(String),
     OpenUrl(String),
+    OpenPath(String),
     ShowMessage(String),
     Notify((String, String)),
     RunApprovedCommand(Vec<String>),
+    ScheduleNotification((u64, String, String)),
+    ScheduleCommand((u64, Vec<String>)),
     None,
 }
 
@@ -122,6 +125,13 @@ impl wasmtime::ResourceLimiter for HostState {
 }
 
 impl rayslash::module::host::Host for HostState {
+    fn unix_time(&mut self) -> u64 {
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs()
+    }
+
     fn request(
         &mut self,
         request: rayslash::module::host::HttpRequest,
@@ -378,9 +388,12 @@ fn map_result(value: rayslash::module::types::ResultItem) -> ResultValue {
         action: match value.action {
             Action::CopyText(value) => ActionValue::CopyText(value),
             Action::OpenUrl(value) => ActionValue::OpenUrl(value),
+            Action::OpenPath(value) => ActionValue::OpenPath(value),
             Action::ShowMessage(value) => ActionValue::ShowMessage(value),
             Action::Notify(value) => ActionValue::Notify(value),
             Action::RunApprovedCommand(value) => ActionValue::RunApprovedCommand(value),
+            Action::ScheduleNotification(value) => ActionValue::ScheduleNotification(value),
+            Action::ScheduleCommand(value) => ActionValue::ScheduleCommand(value),
             Action::None => ActionValue::None,
         },
     }
