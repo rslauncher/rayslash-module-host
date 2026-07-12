@@ -96,6 +96,7 @@ enum IconValue {
 enum ActionValue {
     CopyText(String),
     OpenUrl(String),
+    OpenPath(String),
     ShowMessage(String),
     Notify((String, String)),
     RunApprovedCommand(Vec<String>),
@@ -378,6 +379,7 @@ fn map_result(value: rayslash::module::types::ResultItem) -> ResultValue {
         action: match value.action {
             Action::CopyText(value) => ActionValue::CopyText(value),
             Action::OpenUrl(value) => ActionValue::OpenUrl(value),
+            Action::OpenPath(value) => ActionValue::OpenPath(value),
             Action::ShowMessage(value) => ActionValue::ShowMessage(value),
             Action::Notify(value) => ActionValue::Notify(value),
             Action::RunApprovedCommand(value) => ActionValue::RunApprovedCommand(value),

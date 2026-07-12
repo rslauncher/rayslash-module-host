@@ -3,7 +3,7 @@ package rayslash:module@1.0.0;
 interface types {
     record query-context { query: string, max-results: u32, locale: option<string>, settings-json: string }
     variant icon { package-path(string), text(string), none }
-    variant action { copy-text(string), open-url(string), show-message(string), notify(tuple<string, string>), run-approved-command(list<string>), none }
+    variant action { copy-text(string), open-url(string), open-path(string), show-message(string), notify(tuple<string, string>), run-approved-command(list<string>), none }
     record result-item { id: string, title: string, subtitle: string, icon: icon, score: option<u32>, action: action }
     record query-response { results: list<result-item>, exclusive: bool }
     variant module-error { invalid-query(string), unavailable(string), internal(string) }
