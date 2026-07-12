@@ -1,7 +1,7 @@
 package rayslash:module@1.0.0;
 
 interface types {
-    record query-context { query: string, max-results: u32, locale: option<string> }
+    record query-context { query: string, max-results: u32, locale: option<string>, settings-json: string }
     variant icon { package-path(string), text(string), none }
     variant action { copy-text(string), open-url(string), show-message(string), notify(tuple<string, string>), run-approved-command(list<string>), none }
     record result-item { id: string, title: string, subtitle: string, icon: icon, score: option<u32>, action: action }
@@ -24,4 +24,3 @@ interface provider {
 }
 
 world module { import host; export provider; }
-
