@@ -1,0 +1,26 @@
+pkgname=rayslash-module-host-bin
+pkgver=0.1.0
+pkgrel=1
+pkgdesc='Optional sandbox host for RaySlash WASM modules'
+arch=('x86_64' 'aarch64')
+url='https://github.com/rslauncher/rayslash-module-host'
+license=('MIT')
+provides=('rayslash-module-host')
+conflicts=('rayslash-module-host')
+source=("LICENSE::https://raw.githubusercontent.com/rslauncher/rayslash-module-host/v${pkgver}/LICENSE")
+source_x86_64=("https://github.com/rslauncher/rayslash-module-host/releases/download/v${pkgver}/rayslash-module-host-v${pkgver}-x86_64-unknown-linux-gnu.tar.xz")
+source_aarch64=("https://github.com/rslauncher/rayslash-module-host/releases/download/v${pkgver}/rayslash-module-host-v${pkgver}-aarch64-unknown-linux-gnu.tar.xz")
+sha256sums=('c3a4c90d3543c15a183b21a0e84d287a8853dbe05f7d336ac804a53dc3ad2fbd')
+sha256sums_x86_64=('7af7a8e07f2c60b8cd3960a110b9ad49d92d51264b13ced2d0492432c0d0d20e')
+sha256sums_aarch64=('282075b9b2e218abb62e5fb1c037717c1de60d96934c71783f553f5bd9a629dd')
+
+package() {
+  local target
+  case "$CARCH" in
+    x86_64) target=x86_64-unknown-linux-gnu ;;
+    aarch64) target=aarch64-unknown-linux-gnu ;;
+  esac
+  install -Dm755 "$srcdir/rayslash-module-host-v${pkgver}-${target}/rayslash-module-host" \
+    "$pkgdir/usr/libexec/rayslash/rayslash-module-host"
+  install -Dm644 "$srcdir/LICENSE" "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}
