@@ -1,0 +1,23 @@
+[package]
+name = "rayslash-module-host"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+repository = "https://github.com/rslauncher/rayslash-module-host"
+
+[[bin]]
+name = "rayslash-module-host"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1.0.100"
+clap = { version = "4.5.53", features = ["derive"] }
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.145"
+ureq = "3.1.4"
+wasmtime = { version = "=44.0.2", default-features = false, features = ["anyhow", "component-model", "cranelift", "runtime", "std"] }
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true

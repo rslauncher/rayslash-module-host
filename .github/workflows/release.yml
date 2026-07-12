@@ -1,0 +1,37 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            runner: ubuntu-latest
+          - target: aarch64-unknown-linux-gnu
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - run: cargo build --release --locked --target "${{ matrix.target }}"
+      - name: Package
+        run: |
+          name="rayslash-module-host-${GITHUB_REF_NAME}-${{ matrix.target }}"
+          install -Dm755 "target/${{ matrix.target }}/release/rayslash-module-host" "$name/rayslash-module-host"
+          tar --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner -cJf "$name.tar.xz" "$name"
+          sha256sum "$name.tar.xz" > "$name.tar.xz.sha256"
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            *.tar.xz
+            *.sha256
+
