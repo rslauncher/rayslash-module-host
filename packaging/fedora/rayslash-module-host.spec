@@ -1,10 +1,15 @@
 Name:           rayslash-module-host
 Version:        0.1.2
 Release:        1%{?dist}
-Summary:        Optional sandbox host for RaySlash WASM modules
+Summary:        Sandbox host for RaySlash WASM modules
 License:        MIT
 URL:            https://github.com/rslauncher/rayslash-module-host
 Source1:        %{url}/raw/v%{version}/LICENSE
+
+# Release archives contain the final verified executable. Preserve it exactly
+# and do not emit empty debug packages for this prebuilt-binary package.
+%global debug_package %{nil}
+%global __strip /bin/true
 
 %ifarch x86_64
 %global archive_target x86_64-unknown-linux-gnu
@@ -16,8 +21,9 @@ Source0:        %{url}/releases/download/v%{version}/rayslash-module-host-v%{ver
 ExclusiveArch:  x86_64 aarch64
 
 %description
-Separately installable, no-WASI Wasmtime process used only when a RaySlash WASM
-module is installed. The core launcher does not require this package.
+No-WASI Wasmtime process used to install and run RaySlash WASM modules. RaySlash
+application packages depend on this separately maintained runtime while module
+packages themselves remain uninstalled until selected by the user.
 
 %prep
 %setup -q -n rayslash-module-host-v%{version}-%{archive_target}
@@ -31,7 +37,7 @@ install -Dm0644 %{SOURCE1} %{buildroot}%{_licensedir}/%{name}/LICENSE
 %{_libexecdir}/rayslash/rayslash-module-host
 
 %changelog
-* Sun Jul 13 2026 RaySlash contributors - 0.1.2-1
+* Mon Jul 13 2026 RaySlash contributors - 0.1.2-1
 - Enforce exact network origins across redirects.
 
 * Sun Jul 12 2026 RaySlash contributors - 0.1.1-1
