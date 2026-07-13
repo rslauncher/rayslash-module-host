@@ -1,7 +1,7 @@
 pkgname=rayslash-module-host-bin
 pkgver=0.1.2
 pkgrel=1
-pkgdesc='Optional sandbox host for RaySlash WASM modules'
+pkgdesc='Sandbox host for RaySlash WASM modules'
 arch=('x86_64' 'aarch64')
 url='https://github.com/rslauncher/rayslash-module-host'
 license=('MIT')
