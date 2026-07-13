@@ -1,5 +1,5 @@
 pkgname=rayslash-module-host-bin
-pkgver=0.1.1
+pkgver=0.1.2
 pkgrel=1
 pkgdesc='Optional sandbox host for RaySlash WASM modules'
 arch=('x86_64' 'aarch64')
@@ -11,8 +11,8 @@ source=("LICENSE::https://raw.githubusercontent.com/rslauncher/rayslash-module-h
 source_x86_64=("https://github.com/rslauncher/rayslash-module-host/releases/download/v${pkgver}/rayslash-module-host-v${pkgver}-x86_64-unknown-linux-gnu.tar.xz")
 source_aarch64=("https://github.com/rslauncher/rayslash-module-host/releases/download/v${pkgver}/rayslash-module-host-v${pkgver}-aarch64-unknown-linux-gnu.tar.xz")
 sha256sums=('c3a4c90d3543c15a183b21a0e84d287a8853dbe05f7d336ac804a53dc3ad2fbd')
-sha256sums_x86_64=('1b9e60957cf7fc024eb8e77e0473d6ec5405e44bdfed5c7418a13b07c08c6467')
-sha256sums_aarch64=('81d3890200fd7c0b5ca5e425c0e3c4fdbcd2a67785c1518a9d4eafb46da20d5f')
+sha256sums_x86_64=('9bb6a9ad524a302032e44ead67ef2541cd36d786d9322a03a4ac2ba84a9994f8')
+sha256sums_aarch64=('e86423363a104077f5c101fc29cd1476fd3c1ed626fe271a4ed0bf293912e155')
 
 package() {
   local target
