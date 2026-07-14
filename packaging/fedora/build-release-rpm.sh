@@ -46,9 +46,13 @@ done
 
 cp "$sources/$archive" "$sources/LICENSE" "$topdir/SOURCES/"
 cp "$spec" "$topdir/SPECS/"
-SOURCE_DATE_EPOCH=$(git -C "$repository_root" log -1 --format=%ct "$tag") \
+source_date_epoch=$(git -C "$repository_root" log -1 --format=%ct "$tag")
+SOURCE_DATE_EPOCH=$source_date_epoch \
   rpmbuild -bb --target "$architecture" \
     --define "_topdir $topdir" \
+    --define "_buildhost build.rayslash.invalid" \
+    --define "use_source_date_epoch_as_buildtime 1" \
+    --define "clamp_mtime_to_source_date_epoch 1" \
     "$topdir/SPECS/rayslash-module-host.spec"
 
 rpm_path=$(find "$topdir/RPMS/$architecture" -maxdepth 1 -type f -name '*.rpm' -print -quit)
