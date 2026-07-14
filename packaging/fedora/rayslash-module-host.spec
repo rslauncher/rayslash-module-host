@@ -4,7 +4,7 @@ Release:        1%{?dist}
 Summary:        Sandbox host for RaySlash WASM modules
 License:        MIT
 URL:            https://github.com/rslauncher/rayslash-module-host
-Source1:        %{url}/raw/v%{version}/LICENSE
+Source1:        LICENSE
 
 # Release archives contain the final verified executable. Preserve it exactly
 # and do not emit empty debug packages for this prebuilt-binary package.
@@ -17,7 +17,10 @@ Source1:        %{url}/raw/v%{version}/LICENSE
 %ifarch aarch64
 %global archive_target aarch64-unknown-linux-gnu
 %endif
-Source0:        %{url}/releases/download/v%{version}/rayslash-module-host-v%{version}-%{archive_target}.tar.xz
+# packaging/fedora/build-release-rpm.sh downloads these immutable release-tag
+# inputs and verifies both the pinned checksums and the published sidecar before
+# invoking rpmbuild. Keep rpmbuild itself network-free.
+Source0:        rayslash-module-host-v%{version}-%{archive_target}.tar.xz
 ExclusiveArch:  x86_64 aarch64
 
 %description

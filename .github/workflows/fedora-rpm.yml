@@ -1,0 +1,68 @@
+name: Fedora RPM
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/fedora-rpm.yml
+      - packaging/fedora/**
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/fedora-rpm.yml
+      - packaging/fedora/**
+  workflow_dispatch:
+    inputs:
+      publish_release_assets:
+        description: Attach verified RPMs to the matching host release
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        architecture: [x86_64, aarch64]
+    runs-on: ubuntu-latest
+    container: fedora:44
+    permissions:
+      contents: ${{ inputs.publish_release_assets && 'write' || 'read' }}
+    steps:
+      - name: Install packaging tools
+        run: dnf install -y cpio curl git rpm-build rpmlint xz
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Trust the container workspace
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+      - name: Build from verified release inputs
+        run: packaging/fedora/build-release-rpm.sh "${{ matrix.architecture }}" fedora-rpms
+      - name: Validate package
+        run: |
+          rpm -Kv fedora-rpms/*.rpm
+          rpmlint fedora-rpms/*.rpm
+          rpm -qpl fedora-rpms/*.rpm | grep -Fx /usr/libexec/rayslash/rayslash-module-host
+          rpm -qpl fedora-rpms/*.rpm | grep -Fx /usr/share/licenses/rayslash-module-host/LICENSE
+          test "$(rpm -qpl fedora-rpms/*.rpm | wc -l)" -eq 2
+          (cd fedora-rpms && sha256sum --check --strict *.rpm.sha256)
+          test "$(find fedora-rpms -maxdepth 1 -type f -name '*.rpm' | wc -l)" -eq 1
+          test "$(find fedora-rpms -maxdepth 1 -type f -name '*.rpm.sha256' | wc -l)" -eq 1
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: fedora-44-${{ matrix.architecture }}-host-rpm
+          path: fedora-rpms/*
+          if-no-files-found: error
+          retention-days: 14
+      - name: Publish immutable-release package assets
+        if: ${{ inputs.publish_release_assets }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version=$(rpm --specfile packaging/fedora/rayslash-module-host.spec --qf '%{version}\n' | head -n1)
+          gh release view "v$version" --repo "$GITHUB_REPOSITORY" >/dev/null
+          gh release upload "v$version" fedora-rpms/* --repo "$GITHUB_REPOSITORY" --clobber
