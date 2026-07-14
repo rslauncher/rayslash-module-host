@@ -30,7 +30,7 @@ jobs:
     runs-on: ubuntu-latest
     container: fedora:44
     permissions:
-      contents: ${{ inputs.publish_release_assets && 'write' || 'read' }}
+      contents: write
     steps:
       - name: Install packaging tools
         run: dnf install -y cpio curl git rpm-build rpmlint xz
