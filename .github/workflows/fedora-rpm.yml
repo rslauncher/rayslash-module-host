@@ -33,7 +33,7 @@ jobs:
       contents: write
     steps:
       - name: Install packaging tools
-        run: dnf install -y cpio curl git rpm-build rpmlint xz
+        run: dnf install -y cpio curl gh git rpm-build rpmlint xz
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
