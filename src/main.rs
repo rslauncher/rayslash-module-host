@@ -10,7 +10,7 @@ use anyhow::{Result, anyhow, bail};
 use clap::Parser;
 use serde::{Deserialize, Serialize};
 use wasmtime::component::{Component, Linker};
-use wasmtime::{Config, Engine, Store, StoreLimits, StoreLimitsBuilder};
+use wasmtime::{Cache, CacheConfig, Config, Engine, Store, StoreLimits, StoreLimitsBuilder};
 
 wasmtime::component::bindgen!({ path: "wit", world: "module" });
 
@@ -37,6 +37,7 @@ struct HostState {
     limits: StoreLimits,
     cache_dir: PathBuf,
     network_origins: BTreeSet<String>,
+    http_agent: ureq::Agent,
 }
 
 #[derive(Deserialize)]
@@ -217,8 +218,8 @@ impl HostState {
             .header("User-Agent", "rayslash-module-host/1")
             .body(request.body)
             .map_err(|_| module_error("invalid HTTP request"))?;
-        let agent = http_agent();
-        let mut response = agent
+        let mut response = self
+            .http_agent
             .run(built)
             .map_err(|_| module_error("HTTP request failed"))?;
         let status = response.status().as_u16();
@@ -276,6 +277,11 @@ fn run() -> Result<()> {
     }
     let mut config = Config::new();
     config.wasm_component_model(true).consume_fuel(true);
+    let compiled_cache_dir = args.cache_dir.join("wasmtime");
+    fs::create_dir_all(&compiled_cache_dir)?;
+    let mut cache_config = CacheConfig::new();
+    cache_config.with_directory(compiled_cache_dir);
+    config.cache(Some(Cache::new(cache_config)?));
     let engine = wt(Engine::new(&config))?;
     let component = wt(Component::from_file(&engine, &args.module))
         .map_err(|error| anyhow!("failed to load module component: {error}"))?;
@@ -295,6 +301,7 @@ fn run() -> Result<()> {
             limits,
             cache_dir: args.cache_dir,
             network_origins: args.network_origins.into_iter().collect(),
+            http_agent: http_agent(),
         },
     );
     store.limiter(|state| state);
