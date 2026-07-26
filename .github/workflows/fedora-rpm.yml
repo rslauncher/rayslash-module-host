@@ -39,9 +39,26 @@ jobs:
           fetch-depth: 0
       - name: Trust the container workspace
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+      - name: Check immutable release inputs
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version=$(rpm --specfile packaging/fedora/rayslash-module-host.spec --qf '%{version}\n' | head -n1)
+          if gh release view "v$version" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          elif [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then
+            echo "v$version must be published before building release RPMs" >&2
+            exit 1
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "v$version is not published yet; immutable-input RPM validation will run after release"
+          fi
       - name: Build from verified release inputs
+        if: steps.release.outputs.available == 'true'
         run: packaging/fedora/build-release-rpm.sh "${{ matrix.architecture }}" fedora-rpms
       - name: Validate package
+        if: steps.release.outputs.available == 'true'
         run: |
           rpm -Kv fedora-rpms/*.rpm
           rpmlint fedora-rpms/*.rpm
@@ -53,6 +70,7 @@ jobs:
           test "$(find fedora-rpms -maxdepth 1 -type f -name '*.rpm' | wc -l)" -eq 1
           test "$(find fedora-rpms -maxdepth 1 -type f -name '*.rpm.sha256' | wc -l)" -eq 1
       - name: Upload workflow artifact
+        if: steps.release.outputs.available == 'true'
         uses: actions/upload-artifact@v7
         with:
           name: fedora-44-${{ matrix.architecture }}-host-rpm
