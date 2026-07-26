@@ -65,7 +65,7 @@ jobs:
           rpm -qpl fedora-rpms/*.rpm | grep -Fx /usr/libexec/rayslash/rayslash-module-host
           rpm -qpl fedora-rpms/*.rpm | grep -Fx /usr/libexec/rayslash/rayslash-module-compiler
           rpm -qpl fedora-rpms/*.rpm | grep -Fx /usr/share/licenses/rayslash-module-host/LICENSE
-          test "$(rpm -qpl fedora-rpms/*.rpm | wc -l)" -eq 2
+          test "$(rpm -qpl fedora-rpms/*.rpm | wc -l)" -eq 3
           (cd fedora-rpms && sha256sum --check --strict *.rpm.sha256)
           test "$(find fedora-rpms -maxdepth 1 -type f -name '*.rpm' | wc -l)" -eq 1
           test "$(find fedora-rpms -maxdepth 1 -type f -name '*.rpm.sha256' | wc -l)" -eq 1
