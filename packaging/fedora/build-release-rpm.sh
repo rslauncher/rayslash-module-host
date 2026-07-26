@@ -68,6 +68,11 @@ tar --extract --to-stdout --file "$sources/$archive" \
   "$work_directory/released-host"
 cmp "$work_directory/released-host" \
   "$work_directory/rpm-root/usr/libexec/rayslash/rayslash-module-host"
+tar --extract --to-stdout --file "$sources/$archive" \
+  "rayslash-module-host-v${version}-${target}/rayslash-module-compiler" > \
+  "$work_directory/released-compiler"
+cmp "$work_directory/released-compiler" \
+  "$work_directory/rpm-root/usr/libexec/rayslash/rayslash-module-compiler"
 
 cp "$rpm_path" "$output_directory/"
 rpm_name=$(basename "$rpm_path")

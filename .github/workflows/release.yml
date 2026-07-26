@@ -27,6 +27,7 @@ jobs:
         run: |
           name="rayslash-module-host-${GITHUB_REF_NAME}-${{ matrix.target }}"
           install -Dm755 "target/${{ matrix.target }}/release/rayslash-module-host" "$name/rayslash-module-host"
+          install -Dm755 "target/${{ matrix.target }}/release/rayslash-module-compiler" "$name/rayslash-module-compiler"
           tar --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner -cJf "$name.tar.xz" "$name"
           sha256sum "$name.tar.xz" > "$name.tar.xz.sha256"
       - uses: softprops/action-gh-release@v2

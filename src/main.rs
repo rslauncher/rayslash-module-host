@@ -1,6 +1,6 @@
 use std::{
     collections::BTreeSet,
-    fs,
+    fs::{self, FileTimes, OpenOptions},
     io::{self, BufRead, Write},
     path::{Path, PathBuf},
     time::{Duration, SystemTime, UNIX_EPOCH},
@@ -10,7 +10,7 @@ use anyhow::{Result, anyhow, bail};
 use clap::Parser;
 use serde::{Deserialize, Serialize};
 use wasmtime::component::{Component, Linker};
-use wasmtime::{Cache, CacheConfig, Config, Engine, Store, StoreLimits, StoreLimitsBuilder};
+use wasmtime::{Config, Engine, Store, StoreLimits, StoreLimitsBuilder};
 
 wasmtime::component::bindgen!({ path: "wit", world: "module" });
 
@@ -18,6 +18,8 @@ const PROTOCOL_VERSION: u32 = 1;
 const DEFAULT_FUEL: u64 = 20_000_000;
 const MAX_HTTP_BODY: usize = 2 * 1024 * 1024;
 const MAX_CACHE_VALUE: usize = 1024 * 1024;
+const MAX_CACHE_FILES: usize = 512;
+const MAX_CACHE_BYTES: u64 = 8 * 1024 * 1024;
 
 #[derive(Parser)]
 struct Args {
@@ -150,8 +152,14 @@ impl rayslash::module::host::Host for HostState {
         if !valid_cache_key(&key) {
             return Err(module_error("invalid cache key"));
         }
-        match fs::read(self.cache_dir.join(key)) {
-            Ok(value) if value.len() <= MAX_CACHE_VALUE => Ok(Some(value)),
+        let path = self.cache_dir.join(key);
+        match fs::read(&path) {
+            Ok(value) if value.len() <= MAX_CACHE_VALUE => {
+                if let Ok(file) = OpenOptions::new().write(true).open(path) {
+                    let _ = file.set_times(FileTimes::new().set_modified(SystemTime::now()));
+                }
+                Ok(Some(value))
+            }
             Ok(_) => Err(module_error("cached value exceeds limit")),
             Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
             Err(_) => Err(module_error("cache read failed")),
@@ -171,7 +179,8 @@ impl rayslash::module::host::Host for HostState {
         }
         let target = self.cache_dir.join(&key);
         let temporary = self.cache_dir.join(format!(".{key}.tmp"));
-        if fs::write(&temporary, value)
+        if enforce_cache_quota(&self.cache_dir, &target, value.len() as u64)
+            .and_then(|_| fs::write(&temporary, value))
             .and_then(|_| fs::rename(temporary, target))
             .is_err()
         {
@@ -179,6 +188,52 @@ impl rayslash::module::host::Host for HostState {
         }
         Ok(())
     }
+}
+
+fn enforce_cache_quota(cache_dir: &Path, target: &Path, incoming_bytes: u64) -> io::Result<()> {
+    let mut entries = fs::read_dir(cache_dir)?
+        .filter_map(Result::ok)
+        .filter_map(|entry| {
+            let path = entry.path();
+            if path == target
+                || path
+                    .file_name()
+                    .is_some_and(|name| name.to_string_lossy().starts_with('.'))
+            {
+                return None;
+            }
+            let metadata = entry.metadata().ok()?;
+            metadata.is_file().then(|| {
+                (
+                    path,
+                    metadata.len(),
+                    metadata.modified().unwrap_or(SystemTime::UNIX_EPOCH),
+                )
+            })
+        })
+        .collect::<Vec<_>>();
+    entries.sort_by_key(|(_, _, modified)| *modified);
+
+    let mut total_bytes = entries
+        .iter()
+        .map(|(_, bytes, _)| *bytes)
+        .sum::<u64>()
+        .saturating_add(incoming_bytes);
+    let mut total_files = entries.len() + 1;
+
+    for (path, bytes, _) in entries {
+        if total_bytes <= MAX_CACHE_BYTES && total_files <= MAX_CACHE_FILES {
+            break;
+        }
+        fs::remove_file(path)?;
+        total_bytes = total_bytes.saturating_sub(bytes);
+        total_files = total_files.saturating_sub(1);
+    }
+
+    if total_bytes > MAX_CACHE_BYTES || total_files > MAX_CACHE_FILES {
+        return Err(io::Error::other("module cache quota exceeded"));
+    }
+    Ok(())
 }
 
 impl rayslash::module::types::Host for HostState {}
@@ -277,13 +332,11 @@ fn run() -> Result<()> {
     }
     let mut config = Config::new();
     config.wasm_component_model(true).consume_fuel(true);
-    let compiled_cache_dir = args.cache_dir.join("wasmtime");
-    fs::create_dir_all(&compiled_cache_dir)?;
-    let mut cache_config = CacheConfig::new();
-    cache_config.with_directory(compiled_cache_dir);
-    config.cache(Some(Cache::new(cache_config)?));
     let engine = wt(Engine::new(&config))?;
-    let component = wt(Component::from_file(&engine, &args.module))
+    // The launcher selects this path from its private cache and creates it with the
+    // matching trusted compiler helper. Package-controlled portable Wasm is never
+    // passed to this unsafe deserialization boundary.
+    let component = unsafe { Component::deserialize_file(&engine, &args.module) }
         .map_err(|error| anyhow!("failed to load module component: {error}"))?;
     let mut linker = Linker::new(&engine);
     wt(Module::add_to_linker::<
@@ -551,6 +604,25 @@ mod tests {
         assert!(valid_cache_key("rates-v1.json"));
         assert!(!valid_cache_key("../rates"));
         assert!(!valid_cache_key("a/b"));
+    }
+    #[test]
+    fn cache_quota_evicts_oldest_flat_entries() {
+        let directory = std::env::temp_dir().join(format!(
+            "rayslash-host-cache-quota-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir_all(&directory).unwrap();
+        for index in 0..=MAX_CACHE_FILES {
+            fs::write(directory.join(format!("entry-{index:04}")), []).unwrap();
+        }
+        let target = directory.join("new-entry");
+        enforce_cache_quota(&directory, &target, 1).unwrap();
+        assert!(fs::read_dir(&directory).unwrap().count() < MAX_CACHE_FILES);
+        fs::remove_dir_all(directory).unwrap();
     }
     #[test]
     fn guest_text_and_actions_are_bounded() {

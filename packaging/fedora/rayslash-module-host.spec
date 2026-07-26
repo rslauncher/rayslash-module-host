@@ -1,5 +1,5 @@
 Name:           rayslash-module-host
-Version:        0.1.3
+Version:        0.1.4
 Release:        1%{?dist}
 Summary:        Sandbox host for RaySlash WASM modules
 License:        MIT
@@ -33,13 +33,18 @@ third-party packaging and older application releases compatible.
 
 %install
 install -Dm0755 rayslash-module-host %{buildroot}%{_libexecdir}/rayslash/rayslash-module-host
+install -Dm0755 rayslash-module-compiler %{buildroot}%{_libexecdir}/rayslash/rayslash-module-compiler
 install -Dm0644 %{SOURCE1} %{buildroot}%{_licensedir}/%{name}/LICENSE
 
 %files
 %license %{_licensedir}/%{name}/LICENSE
 %{_libexecdir}/rayslash/rayslash-module-host
+%{_libexecdir}/rayslash/rayslash-module-compiler
 
 %changelog
+* Sun Jul 26 2026 RaySlash contributors - 0.1.4-1
+- Split trusted AOT compilation from the runtime-only host and bound semantic caches.
+
 * Sat Jul 25 2026 RaySlash contributors - 0.1.3-1
 - Persist compiled module caching and reuse HTTP connections.
 
